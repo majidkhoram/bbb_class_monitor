@@ -1,0 +1,1 @@
+A single page to update the information on how many classes are being held, who the moderators and attendees are in addition to be able to join the class as an observer with single click and closing classes without joining.
