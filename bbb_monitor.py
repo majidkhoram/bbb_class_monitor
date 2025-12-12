@@ -1,30 +1,51 @@
+import base64
+import hashlib
 import http.server
+import os
 import socketserver
 import threading
 import time
-import requests
 import xml.etree.ElementTree as ET
-import hashlib
-import base64
 from urllib.parse import urlencode
 
+import requests
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+def _get_env(name, default=None, required=False):
+    """Return environment variable value with optional surrounding quotes stripped."""
+    raw = os.environ.get(name)
+    value = raw if raw is not None else default
+    if isinstance(value, str):
+        stripped = value.strip()
+        if len(stripped) >= 2 and ((stripped[0] == stripped[-1] == '"') or (stripped[0] == stripped[-1] == "'")):
+            value = stripped[1:-1]
+        else:
+            value = stripped
+    if required and (value is None or value == ""):
+        raise RuntimeError(f"Missing required environment variable: {name}")
+    return value
+
 # --- Configuration ---
-API_URL = "https://bbb.example.com/bigbluebutton/api"
-API_SECRET = "..."
-SERVER_PORT = 8000
-REFRESH_INTERVAL_SECONDS = 15
+API_URL = _get_env("API_URL", required=True)
+API_SECRET = _get_env("API_SECRET", required=True)
+SERVER_PORT = int(_get_env("SERVER_PORT", "8000"))
+REFRESH_INTERVAL_SECONDS = int(_get_env("REFRESH_INTERVAL_SECONDS", "15"))
 
 # --- Authentication Credentials ---
-# For better security, use environment variables in a real production environment
-USERNAME = "..."
-PASSWORD = "..." # <-- CHANGE THIS PASSWORD!
+USERNAME = _get_env("USERNAME", required=True)
+PASSWORD = _get_env("PASSWORD", required=True)
 
 # --- Global variables to store generated HTML parts ---
 FULL_HTML_PAGE = "<html><body>Initializing...</body></html>"
 TABLE_BODY_HTML = ""
 
-def build_api_url(action, params={}):
+def build_api_url(action, params=None):
     """Builds a valid BigBlueButton API URL with the correct checksum."""
+    if params is None:
+        params = {}
     query_string = urlencode(params)
     checksum_src = f"{action}{query_string}{API_SECRET}".encode("utf-8")
     checksum = hashlib.sha1(checksum_src).hexdigest()
@@ -149,8 +170,6 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
 
 if __name__ == "__main__":
     print(f"Starting server on port {SERVER_PORT}...")
-    print(f"Username: {USERNAME}")
-    print(f"Password: {PASSWORD}")
     
     data_thread = threading.Thread(target=fetch_and_process_data, daemon=True)
     data_thread.start()
