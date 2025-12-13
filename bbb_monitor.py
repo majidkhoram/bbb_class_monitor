@@ -6,7 +6,7 @@ import socketserver
 import threading
 import time
 import xml.etree.ElementTree as ET
-from urllib.parse import urlencode
+from urllib.parse import urlencode, parse_qs, urlparse
 
 import requests
 from dotenv import load_dotenv
@@ -87,10 +87,6 @@ def fetch_and_process_data():
                         moderator_pw = meeting.findtext('moderatorPW', '')
                         attendee_pw = meeting.findtext('attendeePW', '')
                         end_url = build_api_url("end", {'meetingID': meeting_id, 'password': moderator_pw})
-                        join_url = build_api_url("join", {
-                            'fullName': 'Class Observer', 'meetingID': meeting_id,
-                            'password': attendee_pw, 'redirect': 'true', 'listenOnly': 'true'
-                        })
                         moderators = [att.findtext('fullName', '') for att in meeting.findall("./attendees/attendee[role='MODERATOR']")]
                         viewers = [att.findtext('fullName', '') for att in meeting.findall("./attendees/attendee[role='VIEWER']")]
                         attendees_formated = ""
@@ -103,19 +99,37 @@ def fetch_and_process_data():
                             <td>{meeting.findtext('metadata/bbb-context-name', '--')}</td>
                             <td class="attendees-cell">{attendees_formated or '--'}</td>
                             <td class="actions-cell">
-                                <a href="{join_url}" target="_blank" class="button join-button">ورود</a>
-                                <a href="{end_url}" onclick="return confirm('آیا از بستن این کلاس اطمینان دارید؟');" target="_blank" class="button end-button">بستن کلاس</a>
+                                <button type="button" class="button join-button" data-meeting-id="{meeting_id}" data-attendee-pw="{attendee_pw}">ورود</button>
+                                <button type="button" class="button end-button" data-end-url="{end_url}">بستن کلاس</button>
                             </td>
                         </tr>""")
                     TABLE_BODY_HTML = "\n".join(rows)
             
             FULL_HTML_PAGE = f"""
             <!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="utf-8"/><title>کلاسهای فعال</title><style>
-            body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Vazirmatn',Roboto,Oxygen,Ubuntu,Cantarell,'Open Sans','Helvetica Neue',sans-serif;background-color:#f4f4f4;line-height:1.6}}h1{{text-align:center;color:#333}}table{{width:100%;border-collapse:collapse;margin:20px 0;font-size:.9em;box-shadow:0 2px 15px rgba(0,0,0,.1);background-color:#fff}}th,td{{border:1px solid #ddd;padding:12px 15px;text-align:center;vertical-align:middle}}th{{background-color:#007bff;color:#fff;font-weight:700}}tr:nth-child(even){{background-color:#f2f2f2}}tr:hover{{background-color:#e9ecef}}.attendees-cell{{text-align:right}}.moderator-list{{color:#0056b3;margin-bottom:10px}}.viewer-list{{color:#444}}.actions-cell{{min-width:150px}}.button{{display:block;padding:8px 12px;margin:4px auto;border-radius:5px;color:#fff;text-decoration:none;font-weight:700;text-align:center;transition:background-color .2s}}.join-button{{background-color:#28a745}}.join-button:hover{{background-color:#218838}}.end-button{{background-color:#dc3545}}.end-button:hover{{background-color:#c82333}}
+            body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Vazirmatn',Roboto,Oxygen,Ubuntu,Cantarell,'Open Sans','Helvetica Neue',sans-serif;background-color:#f4f4f4;line-height:1.6}}h1{{text-align:center;color:#333}}table{{width:100%;border-collapse:collapse;margin:20px 0;font-size:.9em;box-shadow:0 2px 15px rgba(0,0,0,.1);background-color:#fff}}th,td{{border:1px solid #ddd;padding:12px 15px;text-align:center;vertical-align:middle}}th{{background-color:#007bff;color:#fff;font-weight:700}}tr:nth-child(even){{background-color:#f2f2f2}}tr:hover{{background-color:#e9ecef}}.attendees-cell{{text-align:right}}.moderator-list{{color:#0056b3;margin-bottom:10px}}.viewer-list{{color:#444}}.actions-cell{{min-width:150px}}.button{{display:block;width:100%;padding:8px 12px;margin:4px 0;border-radius:5px;color:#fff;text-decoration:none;font-weight:700;text-align:center;transition:background-color .2s}}.join-button{{background-color:#28a745}}.join-button:hover{{background-color:#218838}}.end-button{{background-color:#dc3545}}.end-button:hover{{background-color:#c82333}}
             </style></head><body><h1>لیست کلاسهای در حال برگزاری</h1><table><thead><tr><th>نام اتاق</th><th>زمان شروع</th><th>نام دوره</th><th>شرکت‌کنندگان</th><th>عملیات</th></tr></thead>
             <tbody id="meetings-tbody">{TABLE_BODY_HTML}</tbody></table>
             <script>
                 async function updateTable() {{ try {{ const response = await fetch('/update'); if (response.ok) {{ const newBodyHtml = await response.text(); document.getElementById('meetings-tbody').innerHTML = newBodyHtml; }} else {{ console.error('Authentication failed or server error during update.'); }} }} catch (error) {{ console.error('Failed to update table:', error); }} }}
+                document.addEventListener('click', function(event) {{
+                    if (!event.target.classList.contains('join-button')) return;
+                    const meetingId = event.target.dataset.meetingId;
+                    const attendeePw = event.target.dataset.attendeePw;
+                    const fullName = prompt('Enter your name to join the class:');
+                    if (!fullName) return;
+                    fullName = fullName.trim().replace(/\s+/g, ' ').normalize('NFC');
+                    const params = new URLSearchParams({{ meetingID: meetingId, password: attendeePw, fullName }});
+                    window.open(`/join?${{params.toString()}}`, '_blank');
+                }});
+                document.addEventListener('click', function(event) {{
+                    if (!event.target.classList.contains('end-button')) return;
+                    const endUrl = event.target.dataset.endUrl;
+                    if (!endUrl) return;
+                    const confirmClose = confirm('آیا از بستن این کلاس اطمینان دارید؟');
+                    if (!confirmClose) return;
+                    window.open(endUrl, '_blank');
+                }});
                 setInterval(updateTable, {REFRESH_INTERVAL_SECONDS * 1000});
             </script></body></html>"""
         except ET.ParseError as e:
@@ -158,15 +172,43 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
             self.require_auth()
             return
 
-        # If authenticated, proceed to serve the content
+        parsed = urlparse(self.path)
+        if parsed.path == '/update':
+            self.send_response(200)
+            self.send_header("Content-type", "text/html; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(TABLE_BODY_HTML.encode('utf-8'))
+            return
+
+        if parsed.path == '/join':
+            params = parse_qs(parsed.query)
+            meeting_id = params.get('meetingID', [''])[0]
+            password = params.get('password', [''])[0]
+            full_name = params.get('fullName', [''])[0]
+            if not meeting_id or not password or not full_name:
+                self.send_response(400)
+                self.send_header("Content-type", "text/plain; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(b'Missing parameters: meetingID, password, fullName are required.')
+                return
+
+            join_url = build_api_url("join", {
+                'fullName': full_name,
+                'meetingID': meeting_id,
+                'password': password,
+                'redirect': 'true',
+                'listenOnly': 'true'
+            })
+            self.send_response(302)
+            self.send_header("Location", join_url)
+            self.end_headers()
+            return
+
+        # If authenticated and not a special route, serve the main page
         self.send_response(200)
         self.send_header("Content-type", "text/html; charset=utf-8")
         self.end_headers()
-        
-        if self.path == '/update':
-            self.wfile.write(TABLE_BODY_HTML.encode('utf-8'))
-        else:
-            self.wfile.write(FULL_HTML_PAGE.encode('utf-8'))
+        self.wfile.write(FULL_HTML_PAGE.encode('utf-8'))
 
 if __name__ == "__main__":
     print(f"Starting server on port {SERVER_PORT}...")

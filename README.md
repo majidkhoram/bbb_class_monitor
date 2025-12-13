@@ -19,6 +19,7 @@ A lightweight Python server that lists active BigBlueButton meetings and exposes
    python bbb_monitor.py
    ```
    The server starts on `SERVER_PORT` (default `8000`).
+4. Open `http://localhost:8000/` in your browser. Enter the basic auth `USERNAME` and `PASSWORD` you set in `.env`. Click "ورود" and enter your name when prompted; you will join the room with that name.
 
 ## Docker
 - Build:
@@ -29,7 +30,11 @@ A lightweight Python server that lists active BigBlueButton meetings and exposes
   ```bash
   docker run --rm -p 8000:8000 --env-file .env bbb-monitor
   ```
-- Visit `http://localhost:8000/` and log in with `USERNAME`/`PASSWORD` from your env.
+- Visit `http://localhost:8000/` and log in with `USERNAME`/`PASSWORD` from your env. Click "ورود" and enter your name when prompted to join.
+
+## Sign-up / Join flow
+- Access the monitor page with the Basic Auth credentials from `.env`.
+- Click "ورود" for the desired class; you will be asked for your display name, which is used to join the room.
 
 ## Environment Variables
 - `API_URL` (required): BigBlueButton API base URL (e.g., `https://bbb.example.com/bigbluebutton/api`).
